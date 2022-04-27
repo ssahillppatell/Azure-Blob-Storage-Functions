@@ -1,8 +1,14 @@
 const express = require('express')
 const multer = require('multer')
 const path = require('path')
+const { BlobServiceClient, } = require("@azure/storage-blob");
+const { v4: uuidv4 } = require("uuid");
+const fs = require('fs')
+
+require('dotenv').config()
 
 const app = express()
+app.use(express.json())
 
 const fileStorageEngine = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -44,6 +50,82 @@ app.get('/', (req, res) => {
 })
 
 app.post('/upload', progessMiddleware, upload.single('csvfile'), (req, res) => {
+    res.json({
+        message: 'File uploaded successfully'
+    })
+})
+
+app.get('/getContainerFiles', async (req, res) => {
+    const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  
+    if (!AZURE_STORAGE_CONNECTION_STRING) {
+        throw Error("Azure Storage Connection string not found");
+    }
+    const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+    const containerName = "testingcsv"
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+
+    const filesInContainer = []
+    for await (const blob of containerClient.listBlobsFlat()) {
+        filesInContainer.push(blob.name)
+    }
+
+    res.json({
+        files: filesInContainer,
+        count: filesInContainer.length
+    })
+})
+
+async function streamToText(readable) {
+    readable.setEncoding('utf8');
+    let data = '';
+    for await (const chunk of readable) {
+        data += chunk;
+    }
+    return data;
+}
+
+app.post('/getFileContent', async (req, res) => {
+    const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  
+    if (!AZURE_STORAGE_CONNECTION_STRING) {
+        throw Error("Azure Storage Connection string not found");
+    }
+    const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+    const containerName = "testingcsv"
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+
+    const blobName = req.body.blobName
+
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    const downloadBlockBlobResponse = await blockBlobClient.download(0);
+    console.log(await streamToText(downloadBlockBlobResponse.readableStreamBody));
+
+    res.json({
+        message: 'File downloaded successfully'
+    })
+})
+
+app.get('/uploadToContianer', async (req, res) => {
+    const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  
+    if (!AZURE_STORAGE_CONNECTION_STRING) {
+        throw Error("Azure Storage Connection string not found");
+    }
+    const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
+    const containerName = "testingcsv"
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    
+    const blobName = req.body.blobName
+    
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    const data = fs.readFileSync(`./uploads/${blobName}`, 'utf8');
+    const uploadBlobResponse = await blockBlobClient.upload(data, data.length);
+    console.log(
+        "Blob was uploaded successfully. requestId: ",
+        uploadBlobResponse.requestId
+    );
+
     res.json({
         message: 'File uploaded successfully'
     })
