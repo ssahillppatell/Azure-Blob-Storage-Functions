@@ -106,7 +106,7 @@ app.post('/getFileContent', async (req, res) => {
     })
 })
 
-app.get('/uploadToContianer', async (req, res) => {
+app.get('/uploadToContainer', async (req, res) => {
     const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
   
     if (!AZURE_STORAGE_CONNECTION_STRING) {
